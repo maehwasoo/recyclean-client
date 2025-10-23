@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# 타입 검사 실행
+pnpm run typecheck
