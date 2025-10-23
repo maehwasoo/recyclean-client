@@ -63,29 +63,29 @@ export const appTheme: AppTheme = {
     dangerSurface: "#fee2e2",
     info: "#2563eb",
     infoSurface: "#dbeafe",
-    highlight: "#22c55e"
+    highlight: "#22c55e",
   },
   spacing: (step: number) => `${step * 4}px`,
   radii: {
     sm: "8px",
     md: "12px",
     lg: "16px",
-    pill: "999px"
+    pill: "999px",
   },
   shadows: {
     soft: "0 4px 16px rgba(15, 23, 42, 0.08)",
     medium: "0 12px 32px rgba(15, 23, 42, 0.12)",
-    inner: "inset 0 1px 2px rgba(15, 23, 42, 0.08)"
+    inner: "inset 0 1px 2px rgba(15, 23, 42, 0.08)",
   },
   typography: {
-    family: "'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    family: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     weights: {
       regular: 400,
       medium: 500,
       semibold: 600,
-      bold: 700
-    }
-  }
+      bold: 700,
+    },
+  },
 };
 
 declare module "@emotion/react" {
