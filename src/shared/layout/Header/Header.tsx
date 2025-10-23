@@ -40,7 +40,7 @@ export function Header() {
       <HeaderInner>
         <Brand>
           <Recycle size={24} color="#2f855a" />
-          <BrandTitle>EcoTracker</BrandTitle>
+          <BrandTitle>RecyClean</BrandTitle>
         </Brand>
         <Button variant="ghost" size="icon" aria-label="사용자 메뉴 열기">
           <User size={20} />
