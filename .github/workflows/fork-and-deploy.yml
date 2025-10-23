@@ -16,7 +16,7 @@ env:
   # 개인 깃허브 사용자명으로 교체
   FORK_OWNER: maehwasoo
   DEFAULT_BRANCH: main
-  VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
