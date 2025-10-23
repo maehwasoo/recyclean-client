@@ -72,7 +72,7 @@ jobs:
       # (2) 포크 최신화(업스트림 → 포크의 main)
       - name: Sync fork with upstream (merge-upstream)
         env:
-          GH_PAT: ${{ secrets.FORK_PAT }}
+          GH_PAT: ${{ secrets.PAT_GITHUB }}
           REPO: ${{ github.event.repository.name }}
         run: |
           set -e
