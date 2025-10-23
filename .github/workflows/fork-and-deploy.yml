@@ -1,0 +1,159 @@
+name: Fork to personal & Deploy to Vercel (main only)
+
+on:
+  push:
+    branches: [main]   # 오직 main 푸시에만 실행
+
+# 새 커밋이 오면 이전 실행 취소(최신만 유지)
+concurrency:
+  group: vercel-prod-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # ← 개인 깃허브 사용자명
+  FORK_OWNER: maehwasoo
+  DEFAULT_BRANCH: main
+  # 팀/조직 및 프로젝트 ID는 레포 시크릿을 그대로 매핑
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  fork_and_deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate required secrets early
+        env:
+          PAT_GITHUB:        ${{ secrets.PAT_GITHUB }}
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID:    ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          for v in PAT_GITHUB VERCEL_TOKEN VERCEL_TEAM_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Missing required secret: $v"
+              exit 1
+            fi
+          done
+
+      - name: Checkout upstream (org) repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # (1) 개인 포크 보장: 없으면 생성(비동기라 폴링)
+      - name: Ensure fork exists (create if missing)
+        env:
+          GH_PAT: ${{ secrets.PAT_GITHUB }}
+          OWNER:  ${{ github.repository_owner }}      # ex) HongikCE-RecyClean
+          REPO:   ${{ github.event.repository.name }} # ex) recyclean-client
+        run: |
+          set -euo pipefail
+          api="https://api.github.com"
+
+          # 포크 존재 여부 확인
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            "$api/repos/${FORK_OWNER}/${REPO}")
+
+          if [ "$code" != "200" ]; then
+            echo "Creating fork to ${FORK_OWNER}/${REPO}..."
+            curl -s -L -X POST \
+              -H "Authorization: Bearer $GH_PAT" \
+              -H "Accept: application/vnd.github+json" \
+              "$api/repos/${OWNER}/${REPO}/forks" \
+              -d '{}' >/dev/null
+
+            echo "Waiting for fork readiness..."
+            for i in $(seq 1 30); do
+              sleep 2
+              code=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer $GH_PAT" \
+                -H "Accept: application/vnd.github+json" \
+                "$api/repos/${FORK_OWNER}/${REPO}")
+              [ "$code" = "200" ] && break
+            done
+          else
+            echo "Fork already exists: ${FORK_OWNER}/${REPO}"
+          fi
+
+      # (1.5) PAT이 fork에 push 가능한지 사전 검증(친절한 실패 메시지)
+      - name: Verify PAT can push to fork
+        env:
+          GH_TOKEN: ${{ secrets.PAT_GITHUB }} # gh CLI는 GH_TOKEN 사용
+          REPO:     ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          # gh CLI는 GitHub 호스티드 러너에 기본 탑재되어 있음
+          # (이 스텝은 push 권한 여부만 true/false로 확인)
+          can_push=$(gh api "repos/${FORK_OWNER}/${REPO}" --jq '.permissions.push // false' || echo "false")
+          if [ "$can_push" != "true" ]; then
+            echo "::error::The fine-grained PAT cannot push to ${FORK_OWNER}/${REPO}."
+            echo "::error::Grant the token 'Contents: write' on the fork repository (or set repository access to 'All repositories')."
+            echo "::error::The 'Sync a fork' API requires write permission on the fork. See GitHub docs."
+            exit 1
+          fi
+
+      # (2) 포크 최신화: gh repo sync (merge-upstream과 동일 효과)
+      - name: Sync fork with upstream (gh repo sync)
+        env:
+          GH_TOKEN: ${{ secrets.PAT_GITHUB }}
+          OWNER:    ${{ github.repository_owner }}
+          REPO:     ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          echo "Syncing ${FORK_OWNER}/${REPO}:${DEFAULT_BRANCH} from ${OWNER}/${REPO}:${DEFAULT_BRANCH}"
+          # source(-s) = 업스트림, destination = 포크
+          gh repo sync "${FORK_OWNER}/${REPO}" -b "${DEFAULT_BRANCH}" -s "${OWNER}/${REPO}"
+        # gh CLI는 러너에 기본 설치. 스텝에서 GH_TOKEN만 지정하면 됨.
+        # https://docs.github.com/actions/using-workflows/using-github-cli-in-workflows
+        # gh repo sync 문서: https://cli.github.com/manual/gh_repo_sync
+
+      # (3) 포크 기준으로 빌드/배포
+      - name: Clone fork
+        run: |
+          git clone "https://github.com/${FORK_OWNER}/${{ github.event.repository.name }}.git" fork
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install PNPM (optional)
+        run: npm i -g pnpm
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Pull Vercel env (production)
+        working-directory: fork
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=production
+        # vercel pull은 vercel build/dev를 위한 설정·ENV 캐시. 필요 시에만 실행.
+
+      - name: Build (production)
+        working-directory: fork
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod
+
+      - name: Deploy to Vercel (production)
+        id: deploy
+        working-directory: fork
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          url=$(vercel deploy --prebuilt --prod)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment URL
+        run: 'echo "Deployed: ${{ steps.deploy.outputs.url }}"'

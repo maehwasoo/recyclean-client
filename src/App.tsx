@@ -1,6 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@emotion/react";
-import { GlobalStyles } from "./shared/styles/GlobalStyles";
 import { appTheme } from "./shared/styles/theme";
 import { AppShell } from "./shared/layout/AppShell/AppShell";
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
@@ -11,7 +10,6 @@ import { SettingsPage } from "./pages/settings/SettingsPage";
 export function App() {
   return (
     <ThemeProvider theme={appTheme}>
-      <GlobalStyles />
       <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
