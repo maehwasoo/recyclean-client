@@ -119,4 +119,4 @@ jobs:
         # 미리 빌드된 산출물을 업로드하여 배포 :contentReference[oaicite:16]{index=16}
 
       - name: Deployment URL
-        run: echo "Deployed: ${{ steps.deploy.outputs.url }}"
+        run: 'echo "Deployed: ${{ steps.deploy.outputs.url }}"'
