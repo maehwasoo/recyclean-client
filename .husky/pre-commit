@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# 변경된 파일에 lint-staged 실행
+pnpm exec lint-staged
